@@ -45,7 +45,8 @@
 
     const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    const processRequest = async (type, id, payload, csrfToken) => {
+    const processRequest = async (type, id, payload) => {
+        const typeName = type.charAt(0).toUpperCase() + type.slice(1);
         try {
             const response = await fetch(`https://myanimelist.net/ownlist/${type}/add.json`, {
                 method: 'POST',
@@ -58,19 +59,24 @@
             });
 
             if (response.ok) {
-                console.log(`${type.charAt(0).toUpperCase() + type.slice(1)} ID ${id}: Success`);
+                console.log(`${typeName} ID ${id}: Success`);
                 return true;
+            } else if (response.status === 400) {
+                console.log(`${typeName} ID ${id}: Not found`);
+                return false;
             } else {
-                console.log(`${type.charAt(0).toUpperCase() + type.slice(1)} ID ${id}: Failed (${response.status})`);
+                console.log(`${typeName} ID ${id}: Failed (${response.status})`);
                 return false;
             }
         } catch (error) {
-            console.log(`${type.charAt(0).toUpperCase() + type.slice(1)} ID ${id}: Failed (Error: ${error.message})`);
+            console.log(`${typeName} ID ${id}: Failed (Error: ${error.message})`);
             return false;
         }
     };
 
     let processed = 0;
+    let attemptedAnime = 0;
+    let attemptedManga = 0;
     let successfulAnime = 0;
     let successfulManga = 0;
     const csrfToken = getCsrfToken();
@@ -86,7 +92,13 @@
         const id = getRandomId();
         const payload = isAnime ? getAnimePayload(id, csrfToken) : getMangaPayload(id, csrfToken);
 
-        const success = await processRequest(type, id, payload, csrfToken);
+        if (isAnime) {
+            attemptedAnime++;
+        } else {
+            attemptedManga++;
+        }
+
+        const success = await processRequest(type, id, payload);
         if (success) {
             if (isAnime) successfulAnime++;
             else successfulManga++;
@@ -97,6 +109,6 @@
     }
 
     console.log(`Total processed: ${processed}`);
-    console.log(`Anime - Successful: ${successfulAnime}, Failed: ${processed/2 - successfulAnime}`);
-    console.log(`Manga - Successful: ${successfulManga}, Failed: ${processed/2 - successfulManga}`);
+    console.log(`Anime - Successful: ${successfulAnime}, Failed: ${attemptedAnime - successfulAnime}`);
+    console.log(`Manga - Successful: ${successfulManga}, Failed: ${attemptedManga - successfulManga}`);
 })();
