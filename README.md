@@ -1,4 +1,4 @@
-# MAL-List-Randomizer
+# MAL List Randomizer
 A JavaScript to adds random anime or manga to your MyAnimeList list using the browser console.
 
 ## Tutorial
