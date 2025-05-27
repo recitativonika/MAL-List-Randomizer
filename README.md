@@ -5,7 +5,7 @@ A JavaScript to adds random anime or manga to your MyAnimeList list using the br
 
 1. Log in to your [MyAnimeList](https://https://myanimelist.net) account in your web browser.
 2. Open the browser console: Press `F12` or `right-click` on the page and select `Inspect > Console`.
-4. Paste the script/code into the console and press Enter to run it.
+4. Paste the [script/code](https://github.com/recitativonika/MAL-List-Randomizer/blob/88a94e58c6796a5e32de8be602c321b519b62db9/mal-add-random) into the console and press Enter to run it.
 
 
 
