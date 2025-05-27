@@ -11,6 +11,8 @@ A JavaScript to adds random anime or manga to your MyAnimeList list using the br
 
  - The script will start adding random anime or manga to your list and log the results in the console (e.g., "Anime ID 123: Success" or "Manga ID 456: Failed").
  - To stop, close the browser tab or refresh the page.
+ - Uncheck `Error` in `costume levels` to make it cleaner
+    ![image](https://github.com/user-attachments/assets/e7d7a250-ef73-4c48-9fc2-806f98e71331)
 
 ## Optional customization
 
