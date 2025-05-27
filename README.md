@@ -1,2 +1,22 @@
 # MAL-List-Randomizer
-Add Random Anime and Manga to Your List
+A JavaScript to adds random anime or manga to your MyAnimeList list using the browser console.
+
+## Tutorial
+
+1. Log in to your [MyAnimeList](https://https://myanimelist.net) account in your web browser.
+2. Open the browser console: Press `F12` or `right-click` on the page and select `Inspect > Console`.
+4. Paste the script/code into the console and press Enter to run it.
+
+ - The script will start adding random anime or manga to your list and log the results in the console (e.g., "Anime ID 123: Success" or "Manga ID 456: Failed").
+ - To stop, close the browser tab or refresh the page.
+
+## Optional customization
+
+1. Edit `MAX_ATTEMPTS` in the script to set how many random IDs to try add to your MAL account.
+2. Edit `DELAY_MS` to adjust the delay between requests in milliseconds (default is 1000ms).
+
+## Note: Use responsibly, as this modifies your MAL list and makes requests to their servers. Many random IDs may fail if they don’t exist.
+
+## Disclaimer
+This script is intended for testing purposes only. Using this script may violate applicable Terms of Service (ToS) and could result in your account being permanently banned or other consequences. I am not responsible for any damage, loss, or issues that may arise from the use of this code.
+
