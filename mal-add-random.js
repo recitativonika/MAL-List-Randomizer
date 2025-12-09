@@ -1,18 +1,56 @@
 (async () => {
-    // Set this to change delay and total anime/manga to add
-    const DELAY_MS = 1000; // Delay between requests to avoid rate limiting
-    const MAX_ATTEMPTS = 100; // Number of random IDs to process
-
+    // Delay configuration
+    const DELAY_MS = 1000; // Delay between MAL requests
+    const JIKAN_DELAY_MS = 350; // Delay for Jikan API (respect rate limit)
+    
+    // Jikan and process configuration
+    const START_PAGE = 1; // Starting page
+    const TOTAL_PAGES_TO_FETCH = 5; // 0 = unlimited, number = page limit
+    const EXCLUDED_PAGES = "3-5"; // Format: "3-5,8-10,12" (pages 3-5, 8-10, and 12 excluded)
+    
     const getCsrfToken = () => {
         const metaTag = document.querySelector('meta[name="csrf_token"]');
         if (!metaTag) {
-            console.error('CSRF token not found on page');
+            console.error('CSRF token not found');
             return null;
         }
         return metaTag.getAttribute('content');
     };
 
-    const getRandomId = () => Math.floor(Math.random() * 99999) + 1;
+    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    const parseExcludedPages = (excludedStr) => {
+        const excludedRanges = [];
+        if (!excludedStr || excludedStr.trim() === "") {
+            return excludedRanges;
+        }
+        
+        const parts = excludedStr.split(',');
+        for (const part of parts) {
+            const trimmed = part.trim();
+            if (trimmed.includes('-')) {
+                const [start, end] = trimmed.split('-').map(num => parseInt(num.trim()));
+                if (!isNaN(start) && !isNaN(end) && start <= end) {
+                    excludedRanges.push({ start, end });
+                }
+            } else {
+                const pageNum = parseInt(trimmed);
+                if (!isNaN(pageNum)) {
+                    excludedRanges.push({ start: pageNum, end: pageNum });
+                }
+            }
+        }
+        return excludedRanges;
+    };
+
+    const isPageExcluded = (pageNum, excludedRanges) => {
+        for (const range of excludedRanges) {
+            if (pageNum >= range.start && pageNum <= range.end) {
+                return true;
+            }
+        }
+        return false;
+    };
 
     const getAnimePayload = (animeId, csrfToken) => ({
         anime_id: animeId,
@@ -43,10 +81,8 @@
         csrf_token: csrfToken
     });
 
-    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
     const processRequest = async (type, id, payload) => {
-        const typeName = type.charAt(0).toUpperCase() + type.slice(1);
+        const typeName = type === 'anime' ? 'Anime' : 'Manga';
         try {
             const response = await fetch(`https://myanimelist.net/ownlist/${type}/add.json`, {
                 method: 'POST',
@@ -59,56 +95,276 @@
             });
 
             if (response.ok) {
-                console.log(`${typeName} ID ${id}: Success`);
-                return true;
-            } else if (response.status === 400) {
-                console.log(`${typeName} ID ${id}: Not found`);
-                return false;
+                console.log(`  ${typeName} ID ${id}: Successfully added`);
+                return 'success';
             } else {
-                console.log(`${typeName} ID ${id}: Failed (${response.status})`);
-                return false;
+                let errorMessage = `Failed (${response.status})`;
+                try {
+                    const errorData = await response.json();
+                    if (errorData.errors && errorData.errors.length > 0) {
+                        errorMessage = errorData.errors[0].message;
+                    }
+                } catch (e) {
+                }
+                
+                if (response.status === 409 || errorMessage.includes('already in your list')) {
+                    console.log(`  ${typeName} ID ${id}: Already in your list`);
+                    return 'already_exists';
+                } else if (response.status === 400) {
+                    console.log(`  ${typeName} ID ${id}: ${errorMessage}`);
+                    return 'failed';
+                } else {
+                    console.log(`  ${typeName} ID ${id}: ${errorMessage}`);
+                    return 'failed';
+                }
             }
         } catch (error) {
-            console.log(`${typeName} ID ${id}: Failed (Error: ${error.message})`);
-            return false;
+            console.log(`  ${typeName} ID ${id}: Failed (Error: ${error.message})`);
+            return 'failed';
         }
     };
 
-    let processed = 0;
-    let attemptedAnime = 0;
-    let attemptedManga = 0;
-    let successfulAnime = 0;
-    let successfulManga = 0;
     const csrfToken = getCsrfToken();
-
     if (!csrfToken) {
-        console.error('Aborting: No CSRF token available');
+        console.error('Aborted: No CSRF token available');
         return;
     }
 
-    while (processed < MAX_ATTEMPTS) {
-        const isAnime = Math.random() < 0.5;
-        const type = isAnime ? 'anime' : 'manga';
-        const id = getRandomId();
-        const payload = isAnime ? getAnimePayload(id, csrfToken) : getMangaPayload(id, csrfToken);
+    console.log('='.repeat(60));
+    console.log('MYANIMELIST BATCH PROCESSOR - REAL-TIME PER PAGE');
+    console.log('='.repeat(60));
+    console.log('Configuration:');
+    console.log(`- Starting page: ${START_PAGE}`);
+    console.log(`- Total pages: ${TOTAL_PAGES_TO_FETCH === 0 ? 'Unlimited (all)' : TOTAL_PAGES_TO_FETCH}`);
+    console.log(`- Excluded pages: ${EXCLUDED_PAGES || '(none)'}`);
+    console.log(`- Jikan API delay: ${JIKAN_DELAY_MS}ms`);
+    console.log(`- MAL API delay: ${DELAY_MS}ms`);
+    console.log('='.repeat(60) + '\n');
+    
+    const excludedRanges = parseExcludedPages(EXCLUDED_PAGES);
+    let currentPage = START_PAGE;
+    let maxPages = TOTAL_PAGES_TO_FETCH === 0 ? Infinity : TOTAL_PAGES_TO_FETCH;
+    let pagesProcessed = 0;
+    let hasMoreAnimePages = true;
+    let hasMoreMangaPages = true;
+    
+    const stats = {
+        totalProcessed: 0,
+        successful: 0,
+        failed: 0,
+        alreadyExists: 0,
+        animePerPage: {},
+        mangaPerPage: {},
+        animeTotal: 0,
+        mangaTotal: 0
+    };
 
-        if (isAnime) {
-            attemptedAnime++;
+    while ((hasMoreAnimePages || hasMoreMangaPages) && pagesProcessed < maxPages) {
+        
+        if (isPageExcluded(currentPage, excludedRanges)) {
+            console.log(`⏩ SKIPPING PAGE ${currentPage} (excluded)`);
+            currentPage++;
+            continue;
+        }
+        
+        console.log('\n' + '═'.repeat(50));
+        console.log(`📄 PROCESSING PAGE ${currentPage}`);
+        console.log('═'.repeat(50));
+        
+        let animeItems = [];
+        let mangaItems = [];
+        
+        if (hasMoreAnimePages) {
+            console.log(`\n🔍 Fetching anime page ${currentPage}...`);
+            try {
+                const animeUrl = `https://api.jikan.moe/v4/top/anime?page=${currentPage}`;
+                await delay(JIKAN_DELAY_MS);
+                
+                const response = await fetch(animeUrl);
+                console.log(`   Status: ${response.status}`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    if (data.data && Array.isArray(data.data)) {
+                        animeItems = data.data.map(item => ({
+                            id: item.mal_id,
+                            title: item.title || 'No Title',
+                            type: 'anime',
+                            page: currentPage
+                        }));
+                        
+                        console.log(`   ✓ Found ${animeItems.length} anime`);
+                        stats.animePerPage[currentPage] = animeItems.length;
+                        stats.animeTotal += animeItems.length;
+                        
+                        if (data.pagination && data.pagination.has_next_page === false) {
+                            hasMoreAnimePages = false;
+                            console.log('   ⚠️ No more anime pages available');
+                        }
+                    } else {
+                        console.log('   ❌ Invalid anime data format');
+                    }
+                } else {
+                    console.log(`   ❌ Failed to fetch anime data`);
+                }
+            } catch (error) {
+                console.log(`   ❌ Error: ${error.message}`);
+            }
         } else {
-            attemptedManga++;
+            console.log('   ⏭️ Anime: no more pages available');
         }
-
-        const success = await processRequest(type, id, payload);
-        if (success) {
-            if (isAnime) successfulAnime++;
-            else successfulManga++;
+        
+        await delay(200);
+        
+        if (hasMoreMangaPages) {
+            console.log(`\n🔍 Fetching manga page ${currentPage}...`);
+            try {
+                const mangaUrl = `https://api.jikan.moe/v4/top/manga?page=${currentPage}`;
+                await delay(JIKAN_DELAY_MS);
+                
+                const response = await fetch(mangaUrl);
+                console.log(`   Status: ${response.status}`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    if (data.data && Array.isArray(data.data)) {
+                        mangaItems = data.data.map(item => ({
+                            id: item.mal_id,
+                            title: item.title || 'No Title',
+                            type: 'manga',
+                            page: currentPage
+                        }));
+                        
+                        console.log(`   ✓ Found ${mangaItems.length} manga`);
+                        stats.mangaPerPage[currentPage] = mangaItems.length;
+                        stats.mangaTotal += mangaItems.length;
+                        
+                        if (data.pagination && data.pagination.has_next_page === false) {
+                            hasMoreMangaPages = false;
+                            console.log('   ⚠️ No more manga pages available');
+                        }
+                    } else {
+                        console.log('   ❌ Invalid manga data format');
+                    }
+                } else {
+                    console.log(`   ❌ Failed to fetch manga data`);
+                }
+            } catch (error) {
+                console.log(`   ❌ Error: ${error.message}`);
+            }
+        } else {
+            console.log('   ⏭️ Manga: no more pages available');
         }
-
-        processed++;
-        if (processed < MAX_ATTEMPTS) await delay(DELAY_MS);
+        
+        if (animeItems.length > 0) {
+            console.log(`\n🎬 Processing ${animeItems.length} anime to MAL...`);
+            for (const item of animeItems) {
+                const payload = getAnimePayload(item.id, csrfToken);
+                const result = await processRequest('anime', item.id, payload);
+                
+                if (result === 'success') stats.successful++;
+                else if (result === 'already_exists') stats.alreadyExists++;
+                else if (result === 'failed') stats.failed++;
+                
+                stats.totalProcessed++;
+                
+                await delay(DELAY_MS);
+            }
+            console.log(`   ✅ Finished processing anime page ${currentPage}`);
+        }
+        
+        if (mangaItems.length > 0) {
+            console.log(`\n📚 Processing ${mangaItems.length} manga to MAL...`);
+            for (const item of mangaItems) {
+                const payload = getMangaPayload(item.id, csrfToken);
+                const result = await processRequest('manga', item.id, payload);
+                
+                if (result === 'success') stats.successful++;
+                else if (result === 'already_exists') stats.alreadyExists++;
+                else if (result === 'failed') stats.failed++;
+                
+                stats.totalProcessed++;
+                
+                await delay(DELAY_MS);
+            }
+            console.log(`   ✅ Finished processing manga page ${currentPage}`);
+        }
+        
+        if (!hasMoreAnimePages && !hasMoreMangaPages) {
+            console.log(`\n📭 No more anime/manga pages available`);
+            break;
+        }
+        
+        console.log(`\n📊 Progress: Page ${currentPage} completed`);
+        console.log(`   Total processed: ${stats.totalProcessed} items`);
+        console.log(`   Successful: ${stats.successful} | Failed: ${stats.failed} | Already exists: ${stats.alreadyExists}`);
+        
+        currentPage++;
+        pagesProcessed++;
+        
+        if (TOTAL_PAGES_TO_FETCH === 0 && pagesProcessed >= 100) {
+            console.log(`\n⚠️ WARNING: Processed ${pagesProcessed} pages`);
+            console.log('   Script will stop to prevent overload');
+            break;
+        }
+        
+        console.log(`\n⏳ Waiting 2 seconds before next page...`);
+        await delay(2000);
     }
-
-    console.log(`Total processed: ${processed}`);
-    console.log(`Anime - Successful: ${successfulAnime}, Failed: ${attemptedAnime - successfulAnime}`);
-    console.log(`Manga - Successful: ${successfulManga}, Failed: ${attemptedManga - successfulManga}`);
+    
+    console.log('\n' + '='.repeat(60));
+    console.log('PROCESS COMPLETED - FINAL RESULTS');
+    console.log('='.repeat(60));
+    
+    console.log(`\n📈 GENERAL STATISTICS:`);
+    console.log(`Total pages processed: ${pagesProcessed}`);
+    console.log(`Total items found: ${stats.animeTotal + stats.mangaTotal}`);
+    console.log(`   • Anime: ${stats.animeTotal} items`);
+    console.log(`   • Manga: ${stats.mangaTotal} items`);
+    
+    console.log(`\n📤 MAL PROCESSING STATISTICS:`);
+    console.log(`Total items processed: ${stats.totalProcessed}`);
+    console.log(`✅ Successfully added: ${stats.successful}`);
+    console.log(`❌ Failed to add: ${stats.failed}`);
+    console.log(`📌 Already in list: ${stats.alreadyExists}`);
+    
+    console.log(`\n📋 DISTRIBUTION PER PAGE:`);
+    
+    const allPages = new Set([
+        ...Object.keys(stats.animePerPage).map(Number),
+        ...Object.keys(stats.mangaPerPage).map(Number)
+    ]);
+    
+    const sortedPages = Array.from(allPages).sort((a, b) => a - b);
+    
+    for (const page of sortedPages) {
+        const animeCount = stats.animePerPage[page] || 0;
+        const mangaCount = stats.mangaPerPage[page] || 0;
+        
+        if (animeCount > 0 || mangaCount > 0) {
+            console.log(`   Page ${page}: ${animeCount} anime, ${mangaCount} manga`);
+        }
+    }
+    
+    console.log('\n' + '='.repeat(60));
+    console.log('THANK YOU FOR USING THIS SCRIPT!');
+    console.log('='.repeat(60));
+    
+    try {
+        const summary = {
+            timestamp: new Date().toISOString(),
+            pagesProcessed: pagesProcessed,
+            totalItems: stats.totalProcessed,
+            successful: stats.successful,
+            failed: stats.failed,
+            alreadyExists: stats.alreadyExists,
+            animeTotal: stats.animeTotal,
+            mangaTotal: stats.mangaTotal
+        };
+        localStorage.setItem('malBatchProcessor_summary', JSON.stringify(summary));
+        console.log('\n📝 Statistics saved to localStorage');
+    } catch (e) {
+    }
 })();
