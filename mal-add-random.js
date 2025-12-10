@@ -1,12 +1,16 @@
 (async () => {
-    // Delay configuration
-    const DELAY_MS = 1000; // Delay between MAL requests
-    const JIKAN_DELAY_MS = 350; // Delay for Jikan API (respect rate limit)
+    // ========================== MAIN CONFIGURATION ==========================
+    const DELAY_MS = 400; // Delay between MAL requests
+    const JIKAN_DELAY_MS = 350; // Delay for Jikan API
     
     // Jikan and process configuration
     const START_PAGE = 1; // Starting page
-    const TOTAL_PAGES_TO_FETCH = 5; // 0 = unlimited, number = page limit
-    const EXCLUDED_PAGES = "3-5"; // Format: "3-5,8-10,12" (pages 3-5, 8-10, and 12 excluded)
+    const TOTAL_PAGES_TO_FETCH = 0; // 0 = unlimited, number = page limit
+    const EXCLUDED_PAGES = ""; // Format: "3-5,8-10,12" (pages 3-5, 8-10, and 12 excluded)
+    
+    // Safety check
+    const ENABLE_SAFETY_CHECK = true; // true = enabled, false = disabled
+    const SAFETY_CHECK_LIMIT = 100; // Stop after this many pages in unlimited mode
     
     const getCsrfToken = () => {
         const metaTag = document.querySelector('meta[name="csrf_token"]');
@@ -137,6 +141,7 @@
     console.log(`- Starting page: ${START_PAGE}`);
     console.log(`- Total pages: ${TOTAL_PAGES_TO_FETCH === 0 ? 'Unlimited (all)' : TOTAL_PAGES_TO_FETCH}`);
     console.log(`- Excluded pages: ${EXCLUDED_PAGES || '(none)'}`);
+    console.log(`- Safety check: ${ENABLE_SAFETY_CHECK ? `Enabled (limit: ${SAFETY_CHECK_LIMIT} pages)` : 'Disabled'}`);
     console.log(`- Jikan API delay: ${JIKAN_DELAY_MS}ms`);
     console.log(`- MAL API delay: ${DELAY_MS}ms`);
     console.log('='.repeat(60) + '\n');
@@ -304,9 +309,10 @@
         currentPage++;
         pagesProcessed++;
         
-        if (TOTAL_PAGES_TO_FETCH === 0 && pagesProcessed >= 100) {
-            console.log(`\n⚠️ WARNING: Processed ${pagesProcessed} pages`);
+        if (ENABLE_SAFETY_CHECK && TOTAL_PAGES_TO_FETCH === 0 && pagesProcessed >= SAFETY_CHECK_LIMIT) {
+            console.log(`\n⚠️ SAFETY CHECK: Processed ${pagesProcessed} pages (limit: ${SAFETY_CHECK_LIMIT})`);
             console.log('   Script will stop to prevent overload');
+            console.log('   To continue, set ENABLE_SAFETY_CHECK = false or increase SAFETY_CHECK_LIMIT');
             break;
         }
         
