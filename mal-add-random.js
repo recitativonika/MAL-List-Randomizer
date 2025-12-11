@@ -355,7 +355,7 @@
     }
     
     console.log('\n' + '='.repeat(60));
-    console.log('THANK YOU FOR USING THIS SCRIPT!');
+    console.log('PROCESS COMPLETE!');
     console.log('='.repeat(60));
     
     try {
