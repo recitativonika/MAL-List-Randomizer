@@ -31,7 +31,7 @@ const ENABLE_SAFETY_CHECK = true; // true = enabled, false = disabled
 const SAFETY_CHECK_LIMIT = 100; // Stop after this many pages in unlimited mode
 ```    
 
-## Note: Use responsibly, as this modifies your MAL list and makes requests to their servers. Many random IDs may fail if they don’t exist.
+## Note: Use responsibly, as this modifies your MAL list and makes requests to their servers.
 
 ## Disclaimer
 This script is intended for testing purposes only. Using this script may violate applicable Terms of Service (ToS) and could result in your account being permanently banned or other consequences. I am not responsible for any damage, loss, or issues that may arise from the use of this code.
