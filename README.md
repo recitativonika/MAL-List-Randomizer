@@ -16,10 +16,10 @@ A JavaScript script that automatically adds popular anime and manga to your MyAn
 
 ## Optional customization
 Edit the configuration section at the top of the script:
-
-``// Main Configuration
+```
+// Main Configuration
 const DELAY_MS = 400; // Delay between MAL requests
-const JIKAN_DELAY_MS = 350; // Delay for Jikan API (respect rate limit)
+const JIKAN_DELAY_MS = 350; // Delay for Jikan API
 
 // Jikan Pagination Config
 const START_PAGE = 1; // Starting page
@@ -28,8 +28,8 @@ const EXCLUDED_PAGES = ""; // Format: "3-5,8-10,12" (pages 3-5, 8-10, and 12 exc
 
 // Safety Check Config
 const ENABLE_SAFETY_CHECK = true; // true = enabled, false = disabled
-const SAFETY_CHECK_LIMIT = 100; // Stop after this many pages in unlimited mode``
-    
+const SAFETY_CHECK_LIMIT = 100; // Stop after this many pages in unlimited mode
+```    
 
 ## Note: Use responsibly, as this modifies your MAL list and makes requests to their servers. Many random IDs may fail if they don’t exist.
 
